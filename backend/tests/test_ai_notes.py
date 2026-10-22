@@ -212,6 +212,26 @@ def test_finished_parts_are_kept_and_only_failed_ones_are_asked_again(db, signed
     assert asked == [(900, 1800)]
 
 
+def test_preview_summary_keeps_one_parts_length_while_the_parts_are_combined(db, signed_in):
+    add_video(db, duration_s=2700)  # three parts
+    ai_notes.request_notes(db, VID, "en")
+
+    def busy(*_args, **_kwargs):
+        raise GeminiBusy("HTTP 503")
+
+    assert run_due(db, datetime.now(timezone.utc), call=part_answer([]), combine=busy) == "queued"
+    peek = signed_in.post("/api/ai-notes", json={"video_id": VID, "create": False}).json()
+    assert peek["covered_s"] == 2700
+    assert peek["partial"]["summary"] == "from 0"  # not "from 0 from 15 from 30"
+    assert peek["partial"]["brief"].split("\n\n") == ["Part 1. from 0", "Part 2. from 15", "Part 3. from 30"]
+
+
+def test_summary_grows_with_the_video():
+    assert ai_notes.summary_words(10 * 60) == "70-120"
+    assert ai_notes.summary_words(35 * 60) == "110-160"
+    assert ai_notes.summary_words(3 * 3600) == "190-260"
+
+
 def test_twenty_minute_video_is_one_call(db):
     add_video(db, duration_s=20 * 60)
     ai_notes.request_notes(db, VID, "en")

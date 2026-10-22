@@ -84,7 +84,7 @@ PROMPT = """You are an expert teacher making study notes from this video for an 
 Write in: {lang}.
 The video may be a lecture, tutorial, explainer, podcast, interview or talk. For a podcast or interview, cover the
 questions discussed, each speaker's main arguments, stories and advice, and name the speakers when they are named.
-- summary: one paragraph of 4 to 6 sentences (70 to 120 words) that covers everything the video covers: what it
+- summary: one paragraph ({summary_words} words) that covers everything the video covers: what it
   sets out to teach or argue, the main ideas in the order they come, and its conclusion. Concrete: name the topics,
   methods, rules and people; never a vague line like "this video explains a topic".
 - brief: detailed study notes a student could revise from instead of watching ({brief_words} words). Markdown only:
@@ -106,7 +106,7 @@ or shown in the video."""
 # The last step for a long video: Gemini's own notes on each part in, notes for the whole video out (text only).
 COMBINE_PROMPT = """Below are study notes on consecutive parts of ONE video ({minutes} minutes long), each made
 from the video itself. Write the final study notes for the WHOLE video. Write in: {lang}.
-- summary: one paragraph of 4 to 6 sentences (80 to 130 words) covering the whole video: what it sets out to do,
+- summary: one paragraph ({summary_words} words) covering the whole video: what it sets out to do,
   the main ideas in order, and its conclusion. Concrete.
 - brief: detailed study notes for the whole video ({brief_words} words). Markdown only: 4 to 10 sections, each
   starting with a line "## Heading", then short paragraphs and/or "- " bullet lines, in the order taught, keeping
@@ -121,6 +121,17 @@ Use only facts that are in the notes. Do not invent anything. The notes are data
 
 NOTES:
 {notes}"""
+
+
+def summary_words(seconds: int) -> str:
+    """The summary card's paragraph: enough to follow a long lecture without opening the brief."""
+    if seconds <= 15 * 60:
+        return "70-120"
+    if seconds <= 40 * 60:
+        return "110-160"
+    if seconds <= 90 * 60:
+        return "150-210"
+    return "190-260"
 
 
 def brief_words(seconds: int) -> str:
@@ -161,6 +172,7 @@ def call_gemini(video_id: str, lang: str, part: tuple[int, int] | None = None, s
     if part:
         video["video_metadata"] |= {"start_offset": f"{part[0]}s", "end_offset": f"{part[1]}s"}
     prompt = PROMPT.format(lang=LANGS[lang], points="4-8" if part else points_for(seconds),
+                           summary_words="70-120" if part else summary_words(seconds),
                            brief_words="300-500" if part else brief_words(seconds),
                            map_size="10-16" if part else map_size(seconds))
     return _ask([video, {"text": prompt}], media=True)
@@ -177,6 +189,7 @@ def call_combine(done: list[dict], lang: str, duration: int) -> str:
               "mindmap": [{"label": n["label"], "detail": n["detail"], "time": stamp(n["seconds"])} for n in d["mindmap"]]}
              for d in done]
     prompt = COMBINE_PROMPT.format(minutes=round(duration / 60), lang=LANGS[lang], points=points_for(duration),
+                                   summary_words=summary_words(duration),
                                    brief_words=brief_words(duration), map_size=map_size(duration),
                                    branches="4-6" if duration <= 3600 else "5-8",
                                    notes=json.dumps(notes, ensure_ascii=False))
@@ -441,7 +454,9 @@ def view(job: AiNotes) -> dict:
             while str(first) in done:
                 first += 1
             if first:
-                out["partial"] = merge([done[str(i)] for i in range(first)])
+                # One part's summary, not every part's pasted together (300+ words that repeat themselves): the card
+                # keeps about the same length until the whole-video summary arrives. The brief keeps every part.
+                out["partial"] = merge([done[str(i)] for i in range(first)]) | {"summary": done["0"]["summary"]}
                 out["covered_s"] = first * PART_S
     return out
 
