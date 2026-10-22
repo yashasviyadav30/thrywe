@@ -117,12 +117,12 @@ describe('study page', () => {
     })
     renderAt(`/watch/${VID}`)
     await userEvent.click(await screen.findByRole('button', { name: /Generate summary/ }))
-    // The whole summary opens first; "Brief summary" switches to the short one.
-    expect(await screen.findByRole('heading', { name: 'Who spends' })).toBeInTheDocument()
-    expect(screen.queryByText('What CSR rules say.')).toBeNull()
-    await userEvent.click(screen.getByRole('button', { name: 'Brief summary' }))
-    expect(screen.getByText('What CSR rules say.')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Brief summary' })).toHaveAttribute('aria-pressed', 'true')
+    // The summary shows first; "Detailed summary" opens the long one below it.
+    expect(await screen.findByText('What CSR rules say.')).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Who spends' })).toBeNull()
+    await userEvent.click(screen.getByRole('button', { name: 'Detailed summary' }))
+    expect(screen.getByRole('heading', { name: 'Who spends' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Hide detailed summary' })).toHaveAttribute('aria-expanded', 'true')
     expect(calls.filter((c) => c.path === '/api/ai-notes').map((c) => c.body)).toEqual([
       { video_id: VID, lang: 'en', create: false },
       { video_id: VID, lang: 'en', create: true },

@@ -163,30 +163,25 @@ function KeyTerms({ terms }: { terms: AiTerm[] }) {
   )
 }
 
-// "Summary" is the whole video in sections, open at once; "Brief summary" covers the same ground in a paragraph or
-// two. In the data `brief` holds the sectioned summary and `summary` the short one (names from before the switch).
+// The summary covers the whole video; "Detailed summary" opens the long, sectioned one below it.
+// In the data `summary` is the paragraph and `brief` the detailed one (field names kept from before).
 function SummaryCard({ notes, offline }: { notes: AiNotesData; offline: boolean }) {
-  const [short, setShort] = useState(false)
+  const [open, setOpen] = useState(false)
   // Notes made before the sectioned format have no sections: their key points stand in for them.
-  const full = notes.brief || notes.points.map((p) => `${p.title}. ${p.detail}`).join('\n\n')
+  const detailed = notes.brief || notes.points.map((p) => `${p.title}. ${p.detail}`).join('\n\n')
   return (
-    <section className="sum-card" aria-label="Summary">
-      <div className="sum-switch" role="group" aria-label="How much to read">
-        <Sparkles size={16} weight="fill" aria-hidden="true" />
-        <button aria-pressed={!short} onClick={() => setShort(false)}>
-          Summary
-        </button>
-        <button aria-pressed={short} onClick={() => setShort(true)}>
-          Brief summary
-        </button>
+    <section className="sum-card" aria-labelledby="sum-title">
+      <p className="sum-k" id="sum-title">
+        <Sparkles size={16} weight="fill" aria-hidden="true" /> Summary
+      </p>
+      <p className="sum-short">{notes.summary}</p>
+      <button className="sum-toggle" aria-expanded={open} aria-controls="sum-detailed" onClick={() => setOpen(!open)}>
+        {open ? 'Hide detailed summary' : 'Detailed summary'}
+        <ChevronDown size={16} weight="bold" aria-hidden="true" className={open ? 'flip' : ''} />
+      </button>
+      <div id="sum-detailed" className={`sum-brief${open ? ' open' : ''}`} hidden={!open}>
+        <NotesText text={detailed} />
       </div>
-      {short ? (
-        <p className="sum-short">{notes.summary}</p>
-      ) : (
-        <div className="sum-brief">
-          <NotesText text={full} />
-        </div>
-      )}
       <AiLabel offline={offline} />
     </section>
   )
@@ -260,7 +255,7 @@ export default function AiNotesPanel({
                   { label: 'Key points, short', onPick: () => copyPoints(byTime(notes.points), false) },
                   { label: 'Key points in full', hint: 'With each point’s details', onPick: () => copyPoints(byTime(notes.points), true) },
                   ...(notes.brief
-                    ? [{ label: 'Summary', hint: 'The whole summary, in sections', onPick: () => onCopy(briefDoc(notes.brief!), 'Copied the summary to My notes.') }]
+                    ? [{ label: 'Detailed summary', hint: 'In sections', onPick: () => onCopy(briefDoc(notes.brief!), 'Copied the detailed summary to My notes.') }]
                     : []),
                 ]}
               >
@@ -318,8 +313,8 @@ export default function AiNotesPanel({
             </button>
             <PopMenu
               items={[
-                { label: 'Summary', hint: 'The whole summary, key terms and every point in full', onPick: () => share('brief') },
-                { label: 'Brief summary', hint: 'The brief summary and key points', onPick: () => share('short') },
+                { label: 'Summary', hint: 'The summary and key points', onPick: () => share('short') },
+                { label: 'Detailed summary', hint: 'Detailed summary, key terms and every point in full', onPick: () => share('brief') },
               ]}
             >
               <Share2 size={16} aria-hidden="true" /> Share summary

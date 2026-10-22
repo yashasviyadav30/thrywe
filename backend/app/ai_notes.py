@@ -86,10 +86,10 @@ PROMPT = """You are an expert teacher making study notes from this video for an 
 Write in: {lang}.
 The video may be a lecture, tutorial, explainer, podcast, interview or talk. For a podcast or interview, cover the
 questions discussed, each speaker's main arguments, stories and advice, and name the speakers when they are named.
-- summary (shown as "Brief summary"): one or two paragraphs ({summary_words}; count them, never fewer) that still cover everything the
+- summary (shown as "Summary", read first): one or two paragraphs ({summary_words}; count them, never fewer) that cover everything the
   video covers: what it sets out to teach or argue, every main idea in the order it comes, and its conclusion.
   Concrete: name the topics, methods, rules, numbers and people; never a vague line like "this video explains a topic".
-- brief (shown as "Summary", the main thing people read): the full summary of the whole video, written so someone
+- brief (shown as "Detailed summary"): the full summary of the whole video, written so someone
   who cannot watch or listen (travelling, outdoors) learns everything the video teaches from it alone
   ({brief_words}; count them, never fewer). Markdown only: each section starts with a line "## Heading", then "- " bullet
   lines of 1 to 3 full sentences each. Cover every topic in the order taught, with the definitions, reasons, steps,
@@ -110,9 +110,9 @@ or shown in the video."""
 # The last step for a long video: Gemini's own notes on each part in, notes for the whole video out (text only).
 COMBINE_PROMPT = """Below are study notes on consecutive parts of ONE video ({minutes} minutes long), each made
 from the video itself. Write the final study notes for the WHOLE video. Write in: {lang}.
-- summary (shown as "Brief summary"): one or two paragraphs ({summary_words}; count them, never fewer) that still cover the whole
+- summary (shown as "Summary", read first): one or two paragraphs ({summary_words}; count them, never fewer) that cover the whole
   video: what it sets out to do, every main idea in order, and its conclusion. Concrete.
-- brief (shown as "Summary", the main thing people read): the full summary of the whole video, so someone who
+- brief (shown as "Detailed summary"): the full summary of the whole video, so someone who
   cannot watch it learns everything it teaches ({brief_words}; count them, never fewer). Markdown only: each section
   starts with a line "## Heading", then "- " bullet lines of 1 to 3 full sentences each, in the order taught, keeping
   every definition, reason, step, example, number, formula and case law from the notes; drop nothing that is
@@ -132,7 +132,7 @@ NOTES:
 # The free models ignore word counts (asked for 700-1100 words, wrote 387) but keep to counted sentences, sections
 # and bullets, so lengths are asked for as shapes; the word range rides along as a check.
 def summary_words(seconds: int) -> str:
-    """The "Brief summary": short, but still the whole video (the user asked that neither be too short)."""
+    """The "Summary": a paragraph or two, but still the whole video (the user asked that neither be too short)."""
     if seconds <= 15 * 60:
         return "6 to 8 sentences, 120-170 words"
     if seconds <= 40 * 60:
@@ -143,7 +143,7 @@ def summary_words(seconds: int) -> str:
 
 
 def brief_words(seconds: int) -> str:
-    """The "Summary": the whole video, so it can be read instead of watched."""
+    """The "Detailed summary": the whole video, so it can be read instead of watched."""
     if seconds <= 10 * 60:
         return "4 to 6 sections with 4 to 6 bullets each, 450-700 words"
     if seconds <= 30 * 60:

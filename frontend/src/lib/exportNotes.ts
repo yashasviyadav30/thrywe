@@ -26,8 +26,8 @@ export function notesText(title: string, videoId: string, notes: AiNotesData, le
     const points = notes.points.map((p) => `• ${time(p.seconds)}${p.title}: ${p.short}`)
     return [title, '', notes.summary, '', ...points, ...foot].join('\n')
   }
-  const parts = [title, '', '*Brief summary*', notes.summary]
-  if (notes.brief) parts.push('', '*Summary*', plainNotes(notes.brief))
+  const parts = [title, '', '*Summary*', notes.summary]
+  if (notes.brief) parts.push('', '*Detailed summary*', plainNotes(notes.brief))
   if (notes.terms?.length) parts.push('', '*Key terms*', ...notes.terms.map((t) => `• ${t.term}: ${t.meaning}`))
   parts.push('', '*Key points*', ...notes.points.map((p) => `• ${time(p.seconds)}*${p.title}*: ${p.short}\n${p.detail}\n`))
   return [...parts, ...foot].join('\n')
@@ -102,7 +102,7 @@ ul{padding-left:18px}ul ul{border-left:1px solid #e2e5ec;margin:4px 0}
 @media print{body{margin:0}}
 </style></head><body>
 <h1>${esc(title)}</h1><p class="short">Watch it on Thrywe: <a href="${APP_URL}/watch/${videoId}">${APP_URL}/watch/${videoId}</a></p>
-<h2>Brief summary</h2><p class="sum">${esc(notes.summary)}</p>${notes.brief ? `<h2>Summary</h2>${notesHtml(notes.brief)}` : ''}${
+<h2>Summary</h2><p class="sum">${esc(notes.summary)}</p>${notes.brief ? `<h2>Detailed summary</h2>${notesHtml(notes.brief)}` : ''}${
     notes.terms?.length
       ? `<h2>Key terms</h2><dl>${notes.terms.map((t) => `<dt><b>${esc(t.term)}</b></dt><dd>${esc(t.meaning)}</dd>`).join('')}</dl>`
       : ''
