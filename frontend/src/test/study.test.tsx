@@ -101,6 +101,7 @@ describe('study page', () => {
     const yt = fakeYouTube()
     const notes = {
       summary: 'What CSR rules say.',
+      brief: '## Who spends\n- Companies over 500 crore net worth spend **2%** of profit.',
       points: [{ title: 'Who must spend', seconds: 760, short: 'Big companies spend 2%.', detail: 'Net worth over 500 crore.' }],
       mindmap: [{ id: 'r', parent: null, label: 'CSR', detail: '', seconds: 0 }],
     }
@@ -116,7 +117,12 @@ describe('study page', () => {
     })
     renderAt(`/watch/${VID}`)
     await userEvent.click(await screen.findByRole('button', { name: /Generate summary/ }))
-    expect(await screen.findByText('What CSR rules say.')).toBeInTheDocument()
+    // The whole summary opens first; "Brief summary" switches to the short one.
+    expect(await screen.findByRole('heading', { name: 'Who spends' })).toBeInTheDocument()
+    expect(screen.queryByText('What CSR rules say.')).toBeNull()
+    await userEvent.click(screen.getByRole('button', { name: 'Brief summary' }))
+    expect(screen.getByText('What CSR rules say.')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Brief summary' })).toHaveAttribute('aria-pressed', 'true')
     expect(calls.filter((c) => c.path === '/api/ai-notes').map((c) => c.body)).toEqual([
       { video_id: VID, lang: 'en', create: false },
       { video_id: VID, lang: 'en', create: true },

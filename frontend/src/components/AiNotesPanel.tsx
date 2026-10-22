@@ -113,7 +113,6 @@ export function AiNotesStatus({ view, onGenerate, what }: { view: AiNotesView; o
 const byTime = (points: AiPoint[]) =>
   [...points].sort((a, b) => (a.seconds ?? Infinity) - (b.seconds ?? Infinity))
 
-// The short summary first; "Brief summary" opens the fuller one (older summaries fall back to their key points).
 // The AI's detailed notes, drawn as sections, paragraphs and bullet lists (see lib/notesFormat).
 function Inline({ text }: { text: string }) {
   return (
@@ -164,23 +163,30 @@ function KeyTerms({ terms }: { terms: AiTerm[] }) {
   )
 }
 
+// "Summary" is the whole video in sections, open at once; "Brief summary" covers the same ground in a paragraph or
+// two. In the data `brief` holds the sectioned summary and `summary` the short one (names from before the switch).
 function SummaryCard({ notes, offline }: { notes: AiNotesData; offline: boolean }) {
-  const [open, setOpen] = useState(false)
-  // Notes made before the sectioned format have no brief: their key points stand in for it.
-  const brief = notes.brief || notes.points.map((p) => `${p.title}. ${p.detail}`).join('\n\n')
+  const [short, setShort] = useState(false)
+  // Notes made before the sectioned format have no sections: their key points stand in for them.
+  const full = notes.brief || notes.points.map((p) => `${p.title}. ${p.detail}`).join('\n\n')
   return (
-    <section className="sum-card" aria-labelledby="sum-title">
-      <p className="sum-k" id="sum-title">
-        <Sparkles size={16} weight="fill" aria-hidden="true" /> Summary
-      </p>
-      <p className="sum-short">{notes.summary}</p>
-      <button className="sum-toggle" aria-expanded={open} aria-controls="sum-brief" onClick={() => setOpen(!open)}>
-        {open ? 'Hide brief summary' : 'Brief summary'}
-        <ChevronDown size={16} weight="bold" aria-hidden="true" className={open ? 'flip' : ''} />
-      </button>
-      <div id="sum-brief" className={`sum-brief${open ? ' open' : ''}`} hidden={!open}>
-        <NotesText text={brief} />
+    <section className="sum-card" aria-label="Summary">
+      <div className="sum-switch" role="group" aria-label="How much to read">
+        <Sparkles size={16} weight="fill" aria-hidden="true" />
+        <button aria-pressed={!short} onClick={() => setShort(false)}>
+          Summary
+        </button>
+        <button aria-pressed={short} onClick={() => setShort(true)}>
+          Brief summary
+        </button>
       </div>
+      {short ? (
+        <p className="sum-short">{notes.summary}</p>
+      ) : (
+        <div className="sum-brief">
+          <NotesText text={full} />
+        </div>
+      )}
       <AiLabel offline={offline} />
     </section>
   )
@@ -254,7 +260,7 @@ export default function AiNotesPanel({
                   { label: 'Key points, short', onPick: () => copyPoints(byTime(notes.points), false) },
                   { label: 'Key points in full', hint: 'With each point’s details', onPick: () => copyPoints(byTime(notes.points), true) },
                   ...(notes.brief
-                    ? [{ label: 'Brief summary', hint: 'The study notes, in sections', onPick: () => onCopy(briefDoc(notes.brief!), 'Copied the brief summary to My notes.') }]
+                    ? [{ label: 'Summary', hint: 'The whole summary, in sections', onPick: () => onCopy(briefDoc(notes.brief!), 'Copied the summary to My notes.') }]
                     : []),
                 ]}
               >
@@ -312,8 +318,8 @@ export default function AiNotesPanel({
             </button>
             <PopMenu
               items={[
-                { label: 'Summary', hint: 'The short summary and key points', onPick: () => share('short') },
-                { label: 'Brief summary', hint: 'Study notes, key terms and every point in full', onPick: () => share('brief') },
+                { label: 'Summary', hint: 'The whole summary, key terms and every point in full', onPick: () => share('brief') },
+                { label: 'Brief summary', hint: 'The brief summary and key points', onPick: () => share('short') },
               ]}
             >
               <Share2 size={16} aria-hidden="true" /> Share summary

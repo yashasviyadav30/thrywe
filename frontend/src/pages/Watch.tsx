@@ -687,7 +687,7 @@ function StudyHint() {
     <div className="study-hint" role="note">
       <Sparkles size={18} aria-hidden="true" />
       <p>
-        Tap <b>Generate summary</b> for a brief summary and a mind map of this video. Your own notes go in <b>My notes</b>.
+        Tap <b>Generate summary</b> for a summary of the whole video and a mind map. Your own notes go in <b>My notes</b>.
       </p>
       <button
         className="link"

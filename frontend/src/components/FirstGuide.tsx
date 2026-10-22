@@ -13,7 +13,7 @@ const STEPS = [
   {
     Icon: Network,
     title: 'A summary and a mind map of any video',
-    text: 'Open a video and tap Generate summary. You get a brief summary, the key points and a zoomable mind map; tap a time to jump there. Your own notes go in My notes.',
+    text: 'Open a video and tap Generate summary. You get a summary of the whole video, a brief summary, the key points and a zoomable mind map; tap a time to jump there. Your own notes go in My notes.',
   },
   {
     Icon: UserPlus,
