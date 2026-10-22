@@ -2,7 +2,7 @@
 
 import time
 from collections import defaultdict, deque
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime, timezone
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -12,7 +12,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app import google
-from app.auth import current_session, current_user
+from app.auth import SESSION_LIFETIME, current_session, current_user
 from app.config import get_settings
 from app.db import get_db
 from app.filters import CATEGORY_GROUPS, DEFAULT_HIDDEN_GROUPS
@@ -22,7 +22,6 @@ from app.security import hash_password, hash_token, new_token, pseudonym, verify
 router = APIRouter(prefix="/api", tags=["accounts"])
 
 NOTICE_VERSION = "v2"  # v2 (2026-10-05): notes, groups, feedback, AI notes, Google sign-in
-SESSION_LIFETIME = timedelta(days=60)
 INDIA = ZoneInfo("Asia/Kolkata")
 
 

@@ -1,6 +1,6 @@
 """Who is calling: bearer token → user."""
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from fastapi import Depends, HTTPException, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -12,6 +12,7 @@ from app.models import AuthSession, User
 from app.security import hash_token, pseudonym
 
 bearer = HTTPBearer(auto_error=False)
+SESSION_LIFETIME = timedelta(days=60)
 
 
 def current_session(
@@ -29,6 +30,10 @@ def current_session(
     now = datetime.now(timezone.utc)
     if session is None or _aware(session.expires_at) <= now:
         raise HTTPException(status_code=401, detail="not_signed_in")
+    if _aware(session.expires_at) - now < SESSION_LIFETIME / 2:
+        # Someone still using the app stays signed in; only 30 idle days end a sign-in. At most one write a month.
+        session.expires_at = now + SESSION_LIFETIME
+        db.commit()
     request.state.actor = pseudonym(session.user_id)
     return session
 

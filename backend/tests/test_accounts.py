@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime, timedelta, timezone
 
 from sqlalchemy import func, select
 
@@ -83,6 +83,16 @@ def test_me_and_logout(signed_in):
     assert signed_in.get("/api/me").json()["email"] == "asha@example.com"
     assert signed_in.post("/api/auth/logout").status_code == 204
     assert signed_in.get("/api/me").status_code == 401
+
+
+def test_using_the_app_keeps_you_signed_in(signed_in, db):
+    session = db.scalar(select(AuthSession))
+    session.expires_at = datetime.now(timezone.utc) + timedelta(days=5)  # signed in 55 days ago
+    db.commit()
+    assert signed_in.get("/api/me").status_code == 200
+    db.refresh(session)
+    left = session.expires_at.replace(tzinfo=timezone.utc) - datetime.now(timezone.utc)
+    assert left > timedelta(days=59)  # renewed, so a daily user never meets the sign-in page again
 
 
 def test_delete_my_data_removes_everything(signed_in, db):
