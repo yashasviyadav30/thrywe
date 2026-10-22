@@ -49,7 +49,7 @@ def get_or_request(body: AiNotesIn, request: Request, user: User = Depends(curre
     elif job.status == "ready" and (job.data or {}).get("v", 1) < ai_notes.NOTES_VERSION:
         # Made in an older, thinner format: make it again in the new one, and keep showing the old notes meanwhile.
         job.status, job.data, job.attempts, job.reason = "queued", {"previous": job.data}, 0, None
-        job.next_try_at = datetime.now(timezone.utc)
+        job.next_try_at = datetime.now(timezone.utc) + ai_notes.REMAKE_DELAY  # a new video asked meanwhile goes first
         db.commit()
         ai_notes.wake()
     elif job.status == "failed" and body.create:  # "Try again": Gemini's bad hours shouldn't fail a video for good

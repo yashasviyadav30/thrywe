@@ -180,7 +180,7 @@ def test_combining_falls_back_to_a_plain_merge_when_it_keeps_failing(db):
     def broken(done, lang, duration):
         raise GeminiBusy("HTTP 503")
 
-    t = datetime.now(timezone.utc)
+    t = datetime.now(timezone.utc) + ai_notes.REMAKE_DELAY
     for _ in range(ai_notes.MAX_ATTEMPTS):
         status = run_due(db, t, call=part_answer([]), combine=broken)
         t += timedelta(minutes=6)
@@ -318,9 +318,27 @@ def test_an_older_format_opens_at_once_while_the_new_one_is_made(signed_in, db):
     db.commit()
     peek = signed_in.post("/api/ai-notes", json={"video_id": VID, "create": False}).json()
     assert peek["status"] == "ready" and peek["notes"] == old and peek["updating"] is True  # no waiting screen
-    assert run_due(db, datetime.now(timezone.utc), call=lambda v, lang, part=None, seconds=0: ANSWER) == "ready"
+    later = datetime.now(timezone.utc) + ai_notes.REMAKE_DELAY
+    assert run_due(db, later, call=lambda v, lang, part=None, seconds=0: ANSWER) == "ready"
     new = signed_in.post("/api/ai-notes", json={"video_id": VID, "create": False}).json()
     assert new["notes"]["v"] == ai_notes.NOTES_VERSION and "updating" not in new
+
+
+def test_a_new_video_is_made_before_a_remake_asked_just_before_it(signed_in, db):
+    add_video(db)
+    add_video(db, video_id="newvideo001")
+    db.add(AiNotes(video_id=VID, lang="en", status="ready", data={"summary": "Old.", "points": [], "mindmap": []}))
+    db.commit()
+    signed_in.post("/api/ai-notes", json={"video_id": VID, "create": False})  # an old summary opened: remake queued
+    ai_notes.request_notes(db, "newvideo001", "en")  # then someone asks for a new video
+    asked = []
+
+    def answer(v, lang, part=None, seconds=0):
+        asked.append(v)
+        return ANSWER
+
+    run_due(db, datetime.now(timezone.utc), call=answer)
+    assert asked == ["newvideo001"]
 
 
 def test_if_the_new_format_never_comes_the_old_notes_stay(signed_in, db):
@@ -333,7 +351,7 @@ def test_if_the_new_format_never_comes_the_old_notes_stay(signed_in, db):
     def busy(v, lang, part=None, seconds=0):
         raise GeminiBusy("HTTP 503")
 
-    t = datetime.now(timezone.utc)
+    t = datetime.now(timezone.utc) + ai_notes.REMAKE_DELAY
     for _ in range(ai_notes.MAX_ATTEMPTS):
         status = run_due(db, t, call=busy)
         t += timedelta(hours=1)

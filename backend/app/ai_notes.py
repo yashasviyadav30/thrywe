@@ -42,6 +42,10 @@ ONE_CALL_UP_TO_S = 20 * 60  # a 20-minute lecture is still one call
 PARALLEL = 3  # parts asked at once (each about 35k tokens at 0.5 fps: under the free tier's per-minute limit)
 FPS = 0.5  # frames a second Gemini looks at: speech carries most lessons, and it is under half the tokens of 1 fps
 RETRY_WAITS = (5, 15)  # seconds before asking again when an answer comes back busy, before backing off the job
+# A normal answer takes about 20 s (an 18-minute video, 2026-10-22). An overloaded free model sometimes hangs instead
+# of saying "busy": waiting 300 s for it made a 13-minute video take 5 minutes. Give up sooner and ask the next model.
+CALL_TIMEOUT_S = 75
+REMAKE_DELAY = timedelta(minutes=2)  # remakes show the old notes meanwhile, so new videos go first
 MAX_VIDEO_S = 6 * 3600  # long podcasts too; one uses most of the free daily budget
 UNKNOWN_DURATION_S = 3600
 MAX_ATTEMPTS = 6
@@ -222,10 +226,13 @@ def _ask(content: list[dict], media: bool) -> str:
 
 
 def _call_model(model: str, body: dict, key: str) -> str:
+    started = time.monotonic()
     try:
-        r = httpx.post(GEMINI_URL.format(model=model), json=body, timeout=300, headers={"x-goog-api-key": key})
-    except httpx.TransportError as e:
+        r = httpx.post(GEMINI_URL.format(model=model), json=body, timeout=CALL_TIMEOUT_S, headers={"x-goog-api-key": key})
+    except httpx.TransportError as e:  # a timeout too: the next model is asked at once
+        log.info("gemini %s gave up after %.0fs: %s", model, time.monotonic() - started, type(e).__name__)
         raise GeminiBusy(type(e).__name__) from e
+    log.info("gemini %s answered %s in %.0fs", model, r.status_code, time.monotonic() - started)  # no video ID (R11)
     if r.status_code == 429 and "PerDay" in r.text:  # e.g. GenerateRequestsPerDayPerProjectPerModel-FreeTier
         raise GeminiDailyLimit("HTTP 429 per day")
     if r.status_code in (404, 429, 500, 502, 503, 504):  # 404: a retired model, so try the next one
