@@ -77,20 +77,23 @@ SCHEMA = {"type": "OBJECT", "properties": {"summary": {"type": "STRING"}, "brief
                                            "terms": {"type": "ARRAY", "items": _term},
                                            "mindmap": {"type": "ARRAY", "items": _node}},
           "required": ["summary", "brief", "points", "terms", "mindmap"]}
-NOTES_VERSION = 3  # 2: paragraph summary, sectioned brief, key terms. 3 (2026-10-08): mind maps sized to the video.
+NOTES_VERSION = 4  # 2: paragraph summary, sectioned brief, key terms. 3 (2026-10-08): mind maps sized to the video.
+# 4 (2026-10-22): the sectioned "Summary" is the main read and covers the whole video; both texts are longer.
 # Older notes are made again in the background while the old ones stay on screen.
 
 PROMPT = """You are an expert teacher making study notes from this video for an adult learner.
 Write in: {lang}.
 The video may be a lecture, tutorial, explainer, podcast, interview or talk. For a podcast or interview, cover the
 questions discussed, each speaker's main arguments, stories and advice, and name the speakers when they are named.
-- summary: one paragraph ({summary_words} words) that covers everything the video covers: what it
-  sets out to teach or argue, the main ideas in the order they come, and its conclusion. Concrete: name the topics,
-  methods, rules and people; never a vague line like "this video explains a topic".
-- brief: detailed study notes a student could revise from instead of watching ({brief_words} words). Markdown only:
-  3 to 8 sections, each starting with a line "## Heading", then short paragraphs and/or "- " bullet lines. Cover
-  every topic in the order taught, with the definitions, steps, examples, numbers, formulas and stories exactly as
-  given. Mark key terms with **bold**. No intro like "In this video".
+- summary (shown as "Brief summary"): one or two paragraphs ({summary_words} words) that still cover everything the
+  video covers: what it sets out to teach or argue, every main idea in the order it comes, and its conclusion.
+  Concrete: name the topics, methods, rules, numbers and people; never a vague line like "this video explains a topic".
+- brief (shown as "Summary", the main thing people read): the full summary of the whole video, written so someone
+  who cannot watch or listen (travelling, outdoors) learns everything the video teaches from it alone
+  ({brief_words} words). Markdown only: 3 to 10 sections, each starting with a line "## Heading", then short
+  paragraphs and/or "- " bullet lines. Cover every topic in the order taught, with the definitions, reasons, steps,
+  examples, numbers, formulas, case laws and stories exactly as given; skip nothing that is taught. Mark key terms
+  with **bold**. No intro like "In this video".
 - points: {points} key points in the order they come. time = the MM:SS (or H:MM:SS) timestamp where it starts.
   title = at most 8 words. short = one clear sentence. detail = 2-5 sentences with the explanation, examples,
   numbers or formulas as given in the video.
@@ -106,11 +109,13 @@ or shown in the video."""
 # The last step for a long video: Gemini's own notes on each part in, notes for the whole video out (text only).
 COMBINE_PROMPT = """Below are study notes on consecutive parts of ONE video ({minutes} minutes long), each made
 from the video itself. Write the final study notes for the WHOLE video. Write in: {lang}.
-- summary: one paragraph ({summary_words} words) covering the whole video: what it sets out to do,
-  the main ideas in order, and its conclusion. Concrete.
-- brief: detailed study notes for the whole video ({brief_words} words). Markdown only: 4 to 10 sections, each
+- summary (shown as "Brief summary"): one or two paragraphs ({summary_words} words) that still cover the whole
+  video: what it sets out to do, every main idea in order, and its conclusion. Concrete.
+- brief (shown as "Summary", the main thing people read): the full summary of the whole video, so someone who
+  cannot watch it learns everything it teaches ({brief_words} words). Markdown only: 4 to 12 sections, each
   starting with a line "## Heading", then short paragraphs and/or "- " bullet lines, in the order taught, keeping
-  every definition, step, example, number and formula from the notes. Mark key terms with **bold**.
+  every definition, reason, step, example, number, formula and case law from the notes; drop nothing that is
+  taught. Mark key terms with **bold**.
 - points: the {points} most important key points across the whole video, in order. Keep each point's time exactly
   as it is in the notes. title at most 8 words; short = one sentence; detail = 2-5 sentences.
 - terms: the 6-15 most useful key terms from the notes, each with its 1-2 sentence meaning (no repeats).
@@ -124,25 +129,25 @@ NOTES:
 
 
 def summary_words(seconds: int) -> str:
-    """The summary card's paragraph: enough to follow a long lecture without opening the brief."""
+    """The "Brief summary": short, but still the whole video (the user asked that neither be too short)."""
     if seconds <= 15 * 60:
-        return "70-120"
+        return "100-160"
     if seconds <= 40 * 60:
-        return "110-160"
+        return "160-240"
     if seconds <= 90 * 60:
-        return "150-210"
-    return "190-260"
+        return "220-320"
+    return "280-400"
 
 
 def brief_words(seconds: int) -> str:
-    """How long the detailed notes should be for this much video."""
+    """The "Summary": the whole video, so it can be read instead of watched."""
     if seconds <= 10 * 60:
-        return "300-450"
+        return "450-700"
     if seconds <= 30 * 60:
-        return "450-750"
-    if seconds <= 60 * 60:
         return "700-1100"
-    return "1000-1600"
+    if seconds <= 60 * 60:
+        return "1100-1600"
+    return "1600-2400"
 
 
 def map_size(seconds: int) -> str:
@@ -172,8 +177,8 @@ def call_gemini(video_id: str, lang: str, part: tuple[int, int] | None = None, s
     if part:
         video["video_metadata"] |= {"start_offset": f"{part[0]}s", "end_offset": f"{part[1]}s"}
     prompt = PROMPT.format(lang=LANGS[lang], points="4-8" if part else points_for(seconds),
-                           summary_words="70-120" if part else summary_words(seconds),
-                           brief_words="300-500" if part else brief_words(seconds),
+                           summary_words="100-160" if part else summary_words(seconds),
+                           brief_words="550-850" if part else brief_words(seconds),
                            map_size="10-16" if part else map_size(seconds))
     return _ask([video, {"text": prompt}], media=True)
 

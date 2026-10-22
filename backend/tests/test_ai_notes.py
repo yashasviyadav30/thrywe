@@ -227,9 +227,10 @@ def test_preview_summary_keeps_one_parts_length_while_the_parts_are_combined(db,
 
 
 def test_summary_grows_with_the_video():
-    assert ai_notes.summary_words(10 * 60) == "70-120"
-    assert ai_notes.summary_words(35 * 60) == "110-160"
-    assert ai_notes.summary_words(3 * 3600) == "190-260"
+    assert ai_notes.summary_words(10 * 60) == "100-160"
+    assert ai_notes.summary_words(35 * 60) == "160-240"
+    assert ai_notes.summary_words(3 * 3600) == "280-400"
+    assert ai_notes.brief_words(3 * 3600) == "1600-2400"
 
 
 def test_twenty_minute_video_is_one_call(db):
