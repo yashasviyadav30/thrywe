@@ -1,6 +1,7 @@
 """POST /api/search, plus the user's own rules: mutes and followed teachers."""
 
 import re
+from collections.abc import Callable
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
@@ -18,7 +19,8 @@ from app.filters import DEFAULT_HIDDEN_GROUPS
 from app.models import Follow, Goal, LectureProgress, Mute, NotInterested, User, YtVideo
 from app.routers.study import VIDEO_ID
 from app.routers.goals import view
-from app.search import run_search
+from app.llm import groq_json
+from app.search import fix_typos, run_search
 from app.youtube import YouTubeClient, YouTubeError
 
 router = APIRouter(prefix="/api", tags=["search"])
@@ -32,6 +34,13 @@ def get_youtube() -> YouTubeClient:
     if not key:
         raise HTTPException(status_code=503, detail="youtube_not_configured")
     return YouTubeClient(key)
+
+
+def get_typo_fixer() -> Callable[[str], str] | None:
+    """Fixes spelling in the user's own search (R4); none without an LLM, and the words go as typed."""
+    if get_settings().groq_api_key:
+        return lambda q: fix_typos(q, groq_json)
+    return None
 
 
 def rules_for(db: Session, user: User) -> UserRules:
@@ -68,6 +77,7 @@ class SearchIn(BaseModel):
     # In the body, not the URL, so search text never reaches any request log (R11).
     q: str = Field(min_length=1, max_length=200)
     language: str | None = None
+    exact: bool = False  # "Search for … instead": the words as typed, no typo fix
 
 
 @router.post("/search")
@@ -77,11 +87,12 @@ def search(
     user: User = Depends(current_user),
     db: Session = Depends(get_db),
     yt: YouTubeClient = Depends(get_youtube),
+    fix: Callable[[str], str] | None = Depends(get_typo_fixer),
 ) -> dict:
     request.state.action = "search"
     language = body.language if body.language in LANGUAGES else (user.settings.search_language if user.settings else "en")
     try:
-        out = run_search(db, yt, body.q, language, rules_for(db, user))
+        out = run_search(db, yt, body.q, language, rules_for(db, user), None if body.exact else fix)
     except YouTubeError:
         raise HTTPException(status_code=502, detail="youtube_unavailable") from None
     return {
@@ -91,6 +102,7 @@ def search(
         "hidden_count": len(out.hidden),
         "searches_left": out.searches_left,
         "note": out.note,
+        "searched_for": out.searched_for,
         "timings_ms": out.timings_ms,
         "progress": progress_for(db, user, [r["video_id"] for r in out.results]),
     }

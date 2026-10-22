@@ -8,24 +8,59 @@ Flow: shared cache → search.list (100/day bucket) → videos.list for YouTube'
 """
 
 import hashlib
+import json
+import logging
 import math
 import re
 import time
+from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timedelta, timezone
+from functools import lru_cache
 
+import httpx
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app import quota
 from app.filters import UserRules, judge
+from app.llm import LLMError
 from app.models import YtSearchCache, YtVideo
 from app.youtube import QuotaExceeded, YouTubeClient, YouTubeError
+
+log = logging.getLogger(__name__)
 
 SEARCH_FRESH = timedelta(hours=24)
 DETAILS_FRESH = timedelta(hours=24)
 MAX_AGE = timedelta(days=30)
+SEARCH_RESULTS = 50  # one search.list call either way; 25 often left too few lectures after the hide rules
+
+# YouTube's site corrects spelling ("Showing results for…"); the API doesn't, so one typo lost the lecture.
+# The LLM sees only the user's own words, never a video (R3, R4).
+FIX_SYSTEM = """You fix typing mistakes in a YouTube search typed by a student in India.
+Answer as JSON: {"q": "<the search>"}.
+Correct misspelt words, subjects, exam and paper names, codes and teacher names. Keep the user's language (English,
+Hindi or Hinglish), word order and meaning. Never add topics, channels, teachers or extra words. If nothing is
+misspelt, return the search unchanged."""
+
+
+@lru_cache(maxsize=2048)
+def _fixed(query: str, llm) -> str:
+    return str(json.loads(llm(FIX_SYSTEM, query))["q"])
+
+
+def fix_typos(query: str, llm) -> str:
+    """The search with its typos fixed. Never fails: on any trouble the user's own words are searched."""
+    try:
+        fixed = " ".join(_fixed(normalise(query), llm).split())[:200]
+    except (LLMError, httpx.HTTPError, ValueError, KeyError, TypeError) as e:
+        log.warning("typo fix skipped: %s", type(e).__name__)
+        return query
+    # A rewrite much longer than the search is the model adding things, not fixing spelling.
+    if not fixed or len(fixed) > 2 * len(query) + 20 or normalise(fixed) == normalise(query):
+        return query
+    return fixed
 
 
 def normalise(query: str) -> str:
@@ -48,6 +83,7 @@ class SearchOutcome:
     searches_left: int = 0
     timings_ms: dict[str, int] = field(default_factory=dict)
     note: str | None = None
+    searched_for: str | None = None  # the typo-fixed search, when it differs from what was typed
 
 
 def video_card(v: YtVideo) -> dict:
@@ -64,14 +100,16 @@ def video_card(v: YtVideo) -> dict:
     }
 
 
-def _ids_for(db: Session, yt: YouTubeClient, query: str, language: str, now: datetime) -> tuple[list[str], str]:
+def _ids_for(
+    db: Session, yt: YouTubeClient, query: str, language: str, now: datetime, max_results: int = 25
+) -> tuple[list[str], str]:
     key = cache_key(query, language)
     cached = db.get(YtSearchCache, key)
     if cached and now - _aware(cached.fetched_at) < SEARCH_FRESH:
         return list(cached.video_ids), "cache"
     if quota.search_left(db) > 0:
         try:
-            ids = yt.search(query, language)
+            ids = yt.search(query, language, max_results)
         except QuotaExceeded:
             ids = None
         if ids is not None:
@@ -116,15 +154,23 @@ def _details(db: Session, yt: YouTubeClient, ids: list[str], now: datetime) -> d
     return {k: v for k, v in rows.items() if now - _aware(v.fetched_at) < MAX_AGE}
 
 
-def run_search(db: Session, yt: YouTubeClient, query: str, language: str, rules: UserRules) -> SearchOutcome:
+def run_search(
+    db: Session,
+    yt: YouTubeClient,
+    query: str,
+    language: str,
+    rules: UserRules,
+    fix: Callable[[str], str] | None = None,
+) -> SearchOutcome:
     now = datetime.now(timezone.utc)
     t0 = time.perf_counter()
-    ids, mode = _ids_for(db, yt, query, language, now)
+    sent = fix(query) if fix else query
+    ids, mode = _ids_for(db, yt, sent, language, now, SEARCH_RESULTS)
     t1 = time.perf_counter()
     videos = _details(db, yt, ids, now)
     t2 = time.perf_counter()
 
-    out = SearchOutcome(mode=mode)
+    out = SearchOutcome(mode=mode, searched_for=sent if sent != query else None)
     for vid in ids:
         v = videos.get(vid)
         if v is None:  # removed or private since the search

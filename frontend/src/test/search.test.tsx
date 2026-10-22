@@ -35,6 +35,20 @@ async function search(q = 'cost accounting') {
 }
 
 describe('search (Stage 3)', () => {
+  it('says when a typo was fixed, and can search the words as typed', async () => {
+    const { calls } = signInForTest({
+      'POST /api/search': ({ body }) =>
+        ({ status: 200, body: { ...RESPONSE, searched_for: JSON.parse(String(body)).exact ? null : 'cost accounting' } }),
+    })
+    renderAt('/search')
+    await search('cost acounting')
+    expect(await screen.findByText(/Showing results for/)).toHaveTextContent('Showing results for cost accounting.')
+    await userEvent.click(screen.getByRole('button', { name: 'Search for “cost acounting” instead' }))
+    expect(calls.filter((c) => c.path === '/api/search').at(-1)!.body).toEqual({ q: 'cost acounting', exact: true })
+    await screen.findByLabelText('Results')
+    expect(screen.queryByText(/Showing results for/)).toBeNull()
+  })
+
   it('sends the query in the body, not the URL (R11)', async () => {
     const { calls } = signInForTest({ 'POST /api/search': () => ({ status: 200, body: RESPONSE }) })
     renderAt('/search')

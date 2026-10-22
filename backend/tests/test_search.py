@@ -6,7 +6,9 @@ from sqlalchemy import select
 from app.config import get_settings
 from app.filters import CATEGORY_GROUPS, UserRules, judge, youtube_type_reason
 from app.models import AppLog, YtSearchCache, YtVideo
-from app.routers.search import get_youtube
+from app.llm import LLMError
+from app.routers.search import get_typo_fixer, get_youtube
+from app.search import fix_typos
 from app.youtube import blocked_in, parse_duration, parse_video
 from tests.fake_youtube import FakeYouTube, video
 
@@ -31,7 +33,38 @@ def yt(signed_in):
         },
     )
     signed_in.app.dependency_overrides[get_youtube] = lambda: fake
+    signed_in.app.dependency_overrides[get_typo_fixer] = lambda: None  # tests never call a real LLM
     return fake
+
+
+# ---------- typos (YouTube's site fixes spelling; the API doesn't) ----------
+
+def fake_llm(answer):
+    def llm(system, user):
+        assert "typing mistakes" in system and user == "cost acounting"  # only the user's own words go out (R4)
+        return answer
+    return llm
+
+
+def test_a_typo_is_fixed_before_searching_and_the_page_says_so(yt, signed_in):
+    llm = fake_llm('{"q": "cost accounting"}')
+    signed_in.app.dependency_overrides[get_typo_fixer] = lambda: (lambda q: fix_typos(q, llm))
+    body = signed_in.post("/api/search", json={"q": "cost acounting"}).json()
+    assert yt.search_calls == [("cost accounting", "en")]
+    assert body["searched_for"] == "cost accounting"
+    assert [v["video_id"] for v in body["results"]][:1] == ["lecture0001"]
+    # "Search for … instead" sends the words as typed
+    body = signed_in.post("/api/search", json={"q": "cost acounting", "exact": True}).json()
+    assert yt.search_calls[-1] == ("cost acounting", "en") and body["searched_for"] is None
+
+
+def test_typo_fix_never_breaks_or_bloats_a_search():
+    def broken(system, user):
+        raise LLMError("HTTP 503")
+    assert fix_typos("cost acounting", broken) == "cost acounting"
+    assert fix_typos("cost acounting", fake_llm("not json")) == "cost acounting"
+    assert fix_typos("cost acounting", fake_llm('{"q": "cost accounting full course by the best teachers in india 2026 hindi"}')) == "cost acounting"
+    assert fix_typos("cost acounting", fake_llm('{"q": "Cost Acounting"}')) == "cost acounting"  # unchanged: no note
 
 
 # ---------- parsing YouTube's fields ----------

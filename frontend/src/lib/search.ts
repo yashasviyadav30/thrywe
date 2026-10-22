@@ -24,12 +24,14 @@ export type SearchResponse = {
   hidden_count: number
   searches_left: number
   note: string | null
+  searched_for?: string | null // the search with its typos fixed, when it differs from what was typed
   progress?: Progress
 }
 
-export function searchVideos(q: string): Promise<SearchResponse> {
+// exact: the words as typed, without the typo fix ("Search for … instead").
+export function searchVideos(q: string, exact = false): Promise<SearchResponse> {
   // POST so the search text never appears in a URL or request log (R11).
-  return api<SearchResponse>('/api/search', { method: 'POST', body: JSON.stringify({ q }) })
+  return api<SearchResponse>('/api/search', { method: 'POST', body: JSON.stringify(exact ? { q, exact } : { q }) })
 }
 
 export type FeedResponse = { results: VideoCard[]; hidden: HiddenCard[]; hidden_count: number; progress?: Progress }

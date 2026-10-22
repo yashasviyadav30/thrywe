@@ -29,7 +29,7 @@ export default function Search() {
   }, [])
 
   const latest = useRef(0) // only the newest search may fill the page
-  async function run(q: string) {
+  async function run(q: string, exact = false) {
     const text = q.trim()
     if (!text) return
     const ticket = ++latest.current
@@ -40,7 +40,7 @@ export default function Search() {
     rememberSearch(text)
     setRecent(recentSearches())
     try {
-      const found = await searchVideos(text)
+      const found = await searchVideos(text, exact)
       if (ticket === latest.current) setData(remember('search:last', { query: text, data: found }).data)
     } catch (err) {
       if (ticket === latest.current) setError(err instanceof Error ? err.message : 'Search failed. Try again.')
@@ -158,6 +158,14 @@ export default function Search() {
       )}
       {data && (
         <>
+          {data.searched_for && (
+            <p className="notice-line search-fixed">
+              Showing results for <b>{data.searched_for}</b>.{' '}
+              <button className="link" onClick={() => run(query, true)}>
+                Search for “{query}” instead
+              </button>
+            </p>
+          )}
           {data.results.length === 0 && (
             <div className="feed-empty">
               <h3>No videos to show for this search</h3>
