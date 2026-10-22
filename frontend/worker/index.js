@@ -8,6 +8,9 @@ export default {
     const url = new URL(request.url)
     // The old workers.dev addresses send everyone to the app's one address, https://thrywe.pages.dev (wrangler.jsonc).
     if (env.FORWARD_TO) return Response.redirect(env.FORWARD_TO + url.pathname + url.search, 301)
+    // Each Pages deploy also lives at <hash>.thrywe.pages.dev, which the browser treats as another site with its
+    // own storage (signed out). A tab opened there from address-bar history asked to sign in again: send it home.
+    if (url.hostname.endsWith('.thrywe.pages.dev')) return Response.redirect('https://thrywe.pages.dev' + url.pathname + url.search, 301)
     if (url.pathname.startsWith('/api/') || url.pathname === '/health') {
       const headers = new Headers(request.headers)
       headers.delete('cookie')

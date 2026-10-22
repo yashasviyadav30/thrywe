@@ -1,11 +1,21 @@
 import { Suspense } from 'react'
-import { Link, Outlet, useLocation } from 'react-router'
+import { Link, Navigate, Outlet, useLocation } from 'react-router'
 import { APP_NAME } from '../config'
+import { readToken } from '../lib/api'
+import { peekAfterSignIn } from '../lib/groups'
+import { useSession } from '../lib/session'
 import Logo from './Logo'
 import WakingBanner from './WakingBanner'
 
+// The browser remembers /welcome (everyone's first page) and offers it again when the address is typed or a
+// saved link is opened. Someone already signed in skips these pages instead of being asked to sign in again.
+const ACCOUNT_PAGES = new Set(['/welcome', '/sign-in', '/sign-up'])
+
 export default function PublicLayout() {
-  const landing = useLocation().pathname === '/welcome'
+  const { me } = useSession()
+  const { pathname } = useLocation()
+  const landing = pathname === '/welcome'
+  if ((me || readToken()) && ACCOUNT_PAGES.has(pathname)) return <Navigate to={peekAfterSignIn()} replace />
   return (
     <div className={`app${landing ? ' landing-page' : ''}`}>
       <header className="topbar">

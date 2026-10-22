@@ -19,6 +19,19 @@ describe('accounts (Stage 2)', () => {
     expect(router.state.location.pathname).toBe('/welcome')
   })
 
+  it('takes someone already signed in past the welcome and sign-in pages (a typed or saved link)', async () => {
+    for (const path of ['/welcome', '/sign-in', '/sign-up']) {
+      signInForTest({ 'GET /api/feed': () => ({ status: 200, body: { goal: null, items: [], hidden: 0 } }) })
+      const { router, unmount } = renderAt(path)
+      await waitFor(() => expect(router.state.location.pathname).toBe('/'))
+      unmount()
+    }
+    localStorage.setItem('focuslearn.afterSignIn', '/watch/aircAruvnKk')
+    signInForTest()
+    const { router } = renderAt('/welcome')
+    await waitFor(() => expect(router.state.location.pathname).toBe('/watch/aircAruvnKk'))
+  })
+
   it('shows the notice before sign-up, including YouTube and Google links (2.7)', async () => {
     mockApi({})
     renderAt('/sign-up')

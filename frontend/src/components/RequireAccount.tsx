@@ -1,13 +1,17 @@
+import { useEffect } from 'react'
 import { Navigate, Outlet, useLocation } from 'react-router'
 import Logo from './Logo'
 import { readToken } from '../lib/api'
-import { rememberJoin, rememberReturn } from '../lib/groups'
+import { clearAfterSignIn, rememberJoin, rememberReturn } from '../lib/groups'
 import { useSession } from '../lib/session'
 
 // Everything except the welcome, sign-up, sign-in and privacy pages needs an account (18+, R10).
 export default function RequireAccount() {
   const { me, loading } = useSession()
   const { pathname, search } = useLocation()
+  useEffect(() => {
+    if (me) clearAfterSignIn() // inside the app now: the remembered link has done its job
+  }, [me])
   if (loading)
     return (
       <div className="boot" role="status" aria-busy="true">

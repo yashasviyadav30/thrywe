@@ -6,7 +6,6 @@ import GoogleNewAccount from '../components/GoogleNewAccount'
 import Notice from '../components/Notice'
 import { APP_NAME } from '../config'
 import { ApiError } from '../lib/api'
-import { nextAfterSignIn } from '../lib/groups'
 import { useSession } from '../lib/session'
 
 export default function SignUp() {
@@ -21,8 +20,7 @@ export default function SignUp() {
     setBusy(true)
     setError(null)
     try {
-      await work()
-      navigate(nextAfterSignIn(), { replace: true })
+      await work() // signed in: PublicLayout now opens the app (or the shared link)
     } catch (err) {
       if (err instanceof ApiError && err.code === 'under_18') {
         navigate('/not-yet', { replace: true })

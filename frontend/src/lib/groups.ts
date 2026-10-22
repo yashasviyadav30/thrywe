@@ -92,18 +92,26 @@ export function rememberReturn(path: string) {
     // private mode: they open the link again
   }
 }
-export function nextAfterSignIn(): string {
+// Where to go once signed in. Only read here (safe while drawing a screen); used up by clearAfterSignIn once
+// the signed-in app is showing, so the sign-in page and the redirect can't race for it.
+export function peekAfterSignIn(): string {
   const code = pendingJoin()
+  if (code) return `/join/${code}`
   let after: string | null = null
   try {
     after = localStorage.getItem(AFTER)
+  } catch {
+    // ignore
+  }
+  return after && RETURNABLE.test(after) ? after : '/'
+}
+export function clearAfterSignIn() {
+  try {
     localStorage.removeItem(PENDING)
     localStorage.removeItem(AFTER)
   } catch {
     // ignore
   }
-  if (code) return `/join/${code}`
-  return after && RETURNABLE.test(after) ? after : '/'
 }
 
 // The name the user used last time, offered again for the next group.

@@ -4,7 +4,6 @@ import AuthShell from '../components/AuthShell'
 import GoogleButton from '../components/GoogleButton'
 import GoogleNewAccount from '../components/GoogleNewAccount'
 import { ApiError } from '../lib/api'
-import { nextAfterSignIn } from '../lib/groups'
 import { useSession } from '../lib/session'
 
 export default function SignIn() {
@@ -18,8 +17,7 @@ export default function SignIn() {
     setBusy(true)
     setError(null)
     try {
-      await work()
-      navigate(nextAfterSignIn(), { replace: true })
+      await work() // signed in: PublicLayout now opens the app (or the shared link)
     } catch (err) {
       if (err instanceof ApiError && err.code === 'under_18') return navigate('/not-yet', { replace: true })
       if (credential && err instanceof ApiError && err.code === 'no_account') return setNewGoogle(credential)
