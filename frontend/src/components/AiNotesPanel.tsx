@@ -190,6 +190,15 @@ function SummaryCard({ notes, offline }: { notes: AiNotesData; offline: boolean 
 // Over the early notes of a long video: how much is ready, and that the rest is on its way.
 export function PartialBanner({ view }: { view: AiNotesView }) {
   if (!('status' in view) || view.status !== 'queued' || !view.partial) return null
+  // Every part read: only the last step is left, joining them into one summary. (Parts are 15 minutes, so "first
+  // 45 minutes" here was wrong for a 37-minute video.)
+  if (view.progress && view.progress.done >= view.progress.total)
+    return (
+      <p className="partial-banner" role="status">
+        <Hourglass size={16} aria-hidden="true" className="ai-spin" /> The whole video is read. Writing the final summary
+        now; this page fills in by itself.
+      </p>
+    )
   const minutes = Math.round((view.covered_s ?? 0) / 60)
   return (
     <p className="partial-banner" role="status">
