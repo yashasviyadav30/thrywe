@@ -194,7 +194,7 @@ export function PartialBanner({ view }: { view: AiNotesView }) {
     return (
       <p className="partial-banner" role="status">
         <Hourglass size={16} aria-hidden="true" className="ai-spin" /> This is an older, shorter summary. A fuller one is
-        being written and replaces it here by itself in about a minute.
+        being written and replaces it here by itself.
       </p>
     )
   if (!('status' in view) || view.status !== 'queued' || !view.partial) return null
