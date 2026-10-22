@@ -219,8 +219,10 @@ def test_preview_summary_keeps_one_parts_length_while_the_parts_are_combined(db,
     def busy(*_args, **_kwargs):
         raise GeminiBusy("HTTP 503")
 
-    assert run_due(db, datetime.now(timezone.utc), call=part_answer([]), combine=busy) == "queued"
-    peek = signed_in.post("/api/ai-notes", json={"video_id": VID, "create": False}).json()
+    t = datetime.now(timezone.utc)
+    assert run_due(db, t, call=part_answer([]), combine=busy) == "queued"
+    assert aware(db.get(AiNotes, (VID, "en")).next_try_at) - t == ai_notes.COMBINE_RETRY  # a minute, not five
+    peek =signed_in.post("/api/ai-notes", json={"video_id": VID, "create": False}).json()
     assert peek["covered_s"] == 2700
     assert peek["partial"]["summary"] == "from 0"  # not "from 0 from 15 from 30"
     assert peek["partial"]["brief"].split("\n\n") == ["Part 1. from 0", "Part 2. from 15", "Part 3. from 30"]
@@ -365,7 +367,8 @@ def test_googles_daily_limit_waits_for_the_reset_without_failing(db):
     def out_for_the_day(v, lang, part=None, seconds=0):
         raise ai_notes.GeminiDailyLimit("HTTP 429 per day")
 
-    now = datetime.now(timezone.utc)
+    # Noon in California, so the reset is hours away whatever time the test runs.
+    now = ai_notes._next_pacific_midnight(datetime.now(timezone.utc)) + timedelta(hours=12)
     for _ in range(ai_notes.MAX_ATTEMPTS + 1):
         assert run_due(db, now, call=out_for_the_day) == "queued"
         job = db.get(AiNotes, (VID, "en"))

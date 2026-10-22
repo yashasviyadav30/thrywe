@@ -46,6 +46,7 @@ RETRY_WAITS = (5, 15)  # seconds before asking again when an answer comes back b
 # of saying "busy": waiting 300 s for it made a 13-minute video take 5 minutes. Give up sooner and ask the next model.
 CALL_TIMEOUT_S = 75
 REMAKE_DELAY = timedelta(minutes=2)  # remakes show the old notes meanwhile, so new videos go first
+COMBINE_RETRY = timedelta(minutes=1)  # every part is read and only one text call is left: a user is waiting on it
 MAX_VIDEO_S = 6 * 3600  # long podcasts too; one uses most of the free daily budget
 UNKNOWN_DURATION_S = 3600
 MAX_ATTEMPTS = 6
@@ -420,7 +421,7 @@ def run_due(db: Session, now: datetime | None = None, call=call_gemini, combine=
             # Keep the parts and try only the combine again soon, instead of settling for the rough merge.
             log.info("gemini combine %s: %s", "busy" if isinstance(whole, GeminiBusy) else "failed", whole)
             job.data = {"parts": kept, "total": len(todo), **({"previous": previous} if previous else {})}
-            job.reason, job.next_try_at = "busy", now + timedelta(minutes=5)
+            job.reason, job.next_try_at = "busy", now + COMBINE_RETRY
     else:
         log.info("gemini %s: %s", "busy" if isinstance(errors[0], GeminiBusy) else "failed", errors[0])  # no video ID (R11)
         job.data = {"parts": kept, "total": len(todo), **({"previous": previous} if previous else {})}  # wait for the rest
