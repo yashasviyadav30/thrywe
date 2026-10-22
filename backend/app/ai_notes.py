@@ -45,7 +45,7 @@ RETRY_WAITS = (5, 15)  # seconds before asking again when an answer comes back b
 # A normal answer takes about 20 s (an 18-minute video, 2026-10-22). An overloaded free model sometimes hangs instead
 # of saying "busy": waiting 300 s for it made a 13-minute video take 5 minutes. Give up sooner and ask the next model.
 CALL_TIMEOUT_S = 75
-REMAKE_DELAY = timedelta(minutes=2)  # remakes show the old notes meanwhile, so new videos go first
+REMAKE_DELAY = timedelta(seconds=30)  # new videos asked meanwhile go first; longer and the old summary lingers
 COMBINE_RETRY = timedelta(minutes=1)  # every part is read and only one text call is left: a user is waiting on it
 MAX_VIDEO_S = 6 * 3600  # long podcasts too; one uses most of the free daily budget
 UNKNOWN_DURATION_S = 3600

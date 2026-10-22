@@ -189,6 +189,14 @@ function SummaryCard({ notes, offline }: { notes: AiNotesData; offline: boolean 
 
 // Over the early notes of a long video: how much is ready, and that the rest is on its way.
 export function PartialBanner({ view }: { view: AiNotesView }) {
+  // An older, shorter summary is shown while the fuller one is made: say so, or it reads as "it got shorter".
+  if ('status' in view && view.status === 'ready' && view.updating)
+    return (
+      <p className="partial-banner" role="status">
+        <Hourglass size={16} aria-hidden="true" className="ai-spin" /> This is an older, shorter summary. A fuller one is
+        being written and replaces it here by itself in about a minute.
+      </p>
+    )
   if (!('status' in view) || view.status !== 'queued' || !view.partial) return null
   // Every part read: only the last step is left, joining them into one summary. (Parts are 15 minutes, so "first
   // 45 minutes" here was wrong for a 37-minute video.)
