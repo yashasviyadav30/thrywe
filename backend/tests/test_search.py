@@ -8,7 +8,7 @@ from app.filters import CATEGORY_GROUPS, UserRules, judge, youtube_type_reason
 from app.models import AppLog, YtSearchCache, YtVideo
 from app.llm import LLMError
 from app.routers.search import get_typo_fixer, get_youtube
-from app.search import fix_typos
+from app.search import fix_typos, named_channels
 from app.youtube import blocked_in, parse_duration, parse_video
 from tests.fake_youtube import FakeYouTube, video
 
@@ -261,6 +261,15 @@ def test_mutes_and_follows_change_results(yt, signed_in):
     r = signed_in.post("/api/search", json={"q": "cost accounting"}).json()
     assert "musicvid001" in {v["video_id"] for v in r["results"]}
     assert signed_in.get("/api/follows").json() == [SINGER]
+
+
+def test_typing_a_channels_name_finds_its_videos_even_under_entertainment():
+    course = video("chaicode001", channel_id="UC" + "c" * 22, channel_title="Chai aur Code", category_id="24")
+    other = video("teacher0001", channel_title="Teacher")
+    assert named_channels("Chai Aur Code python", [course, other]) == {course.channel_id}
+    assert named_channels("python tutorial hindi", [course, other]) == set()  # not named: the type rule still applies
+    maths = video("maths000001", channel_title="Maths")
+    assert named_channels("class 10 maths", [maths]) == set()  # names under 6 letters are too common to count
 
 
 def test_bad_channel_ids_are_refused(signed_in):

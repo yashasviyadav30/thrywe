@@ -14,7 +14,7 @@ import math
 import re
 import time
 from collections.abc import Callable
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, replace
 from datetime import datetime, timedelta, timezone
 from functools import lru_cache
 
@@ -154,6 +154,16 @@ def _details(db: Session, yt: YouTubeClient, ids: list[str], now: datetime) -> d
     return {k: v for k, v in rows.items() if now - _aware(v.fetched_at) < MAX_AGE}
 
 
+def _letters(text: str) -> str:
+    return "".join(c for c in text.casefold() if c.isalnum())
+
+
+def named_channels(query: str, videos) -> set[str]:
+    """Channels whose name the user typed. Compares the user's own words with channel names only (R3: never titles)."""
+    typed = _letters(query)
+    return {v.channel_id for v in videos if len(name := _letters(v.channel_title or "")) >= 6 and name in typed}
+
+
 def run_search(
     db: Session,
     yt: YouTubeClient,
@@ -171,6 +181,9 @@ def run_search(
     t2 = time.perf_counter()
 
     out = SearchOutcome(mode=mode, searched_for=sent if sent != query else None)
+    # A channel the user typed by name counts as followed for this search: some teachers file whole courses under
+    # "Entertainment" (Chai aur Code's Python course), and "chai aur code python" must still find them.
+    rules = replace(rules, trusted_channels=rules.trusted_channels | named_channels(query, videos.values()))
     for vid in ids:
         v = videos.get(vid)
         if v is None:  # removed or private since the search
